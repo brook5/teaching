@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第九章 关系系统及其查询优化 · 数据库系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Noto+Sans+SC:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ==================== THEME TOKENS ==================== */
+:root{
+  --paper:#ffffff; --ink:#0a0a0a; --red:#ff3300; --grey:#6f6f6f; --hair:#e9e9e9;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+/* ==================== MANDATORY FIXED-STAGE BASE (viewport-base.css) ==================== */
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#111;}
+.deck-viewport{position:fixed;inset:0;overflow:hidden;background:#111;}
+.deck-stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--paper);}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--paper);}
+.slide.active,.slide.visible{visibility:visible;opacity:1;pointer-events:auto;z-index:1;}
+img,video,canvas,svg{max-width:100%;max-height:100%;}
+@media print{html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+.deck-viewport{position:static;overflow:visible;background:#fff;}
+.deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+.slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+.slide:last-child{break-after:auto;page-break-after:auto;}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.2s!important;}}
+/* ==================== REVEAL ANIMATIONS ==================== */
+.reveal{opacity:0;transform:translateY(34px);transition:opacity .7s var(--ease),transform .7s var(--ease);transition-delay:var(--d,0s);}
+.slide.visible .reveal{opacity:1;transform:none;}
+/* ==================== SHARED CHROME ==================== */
+.gridlines{position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(90deg,transparent 0 159px,rgba(10,10,10,.05) 159px 160px);}
+.chrome{position:absolute;top:64px;left:120px;display:flex;align-items:center;gap:20px;font-family:Archivo,sans-serif;font-weight:800;font-size:26px;letter-spacing:.32em;color:var(--ink);}
+.chrome .sq{width:34px;height:34px;background:var(--ink);flex:none;}
+.sq{width:26px;height:26px;background:var(--red);display:inline-block;flex:none;}
+.shead{position:absolute;top:150px;left:120px;right:120px;}
+.kicker{font-family:Archivo,sans-serif;font-weight:800;font-size:30px;letter-spacing:.42em;color:var(--red);margin-bottom:26px;}
+.stitle{font-family:'Noto Sans SC',sans-serif;font-weight:900;font-size:76px;line-height:1.35;letter-spacing:.02em;color:var(--ink);}
+.rule-red{width:170px;height:12px;background:var(--red);margin-top:30px;}
+.sbody{position:absolute;top:430px;left:120px;right:140px;bottom:130px;overflow:hidden;}
+/* ==================== BULLETS ==================== */
+.bullets{list-style:none;display:flex;flex-direction:column;gap:30px;}
+.bullets>li{position:relative;padding-left:56px;font-size:40px;line-height:1.65;font-weight:500;color:var(--ink);}
+.bullets>li::before{content:"";position:absolute;left:0;top:22px;width:26px;height:26px;background:var(--red);}
+.sublist{list-style:none;margin-top:18px;display:flex;flex-direction:column;gap:16px;}
+.sublist li.lv1{position:relative;padding-left:44px;font-size:34px;line-height:1.6;color:var(--grey);font-weight:500;}
+.sublist li.lv1::before{content:"";position:absolute;left:0;top:20px;width:18px;height:18px;background:var(--ink);opacity:.55;}
+li.formula{list-style:none;padding:0!important;}
+li.formula::before{display:none;}
+li.formula code{display:inline-block;font-family:'Space Mono',monospace;font-size:34px;font-weight:700;color:var(--ink);background:#f5f5f5;border:2px solid var(--ink);border-left:14px solid var(--red);padding:18px 34px;max-width:100%;}
+/* numbered steps ①②③ */
+li.step{display:flex;gap:30px;align-items:flex-start;padding:0!important;}
+li.step::before{display:none;}
+.stepno{flex:none;width:96px;height:96px;background:var(--red);color:#fff;font-family:Archivo,sans-serif;font-weight:900;font-size:52px;display:flex;align-items:center;justify-content:center;}
+.stephead{font-size:40px;font-weight:700;line-height:1.6;}
+.stepsub{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:12px;}
+.stepsub li.sub{font-size:33px;color:var(--grey);line-height:1.6;}
+/* ==================== TITLE SLIDE ==================== */
+.title-slide .redbar{position:absolute;left:0;top:0;height:26px;background:var(--red);animation:barsweep 1s var(--ease) .1s both;}
+@keyframes barsweep{from{width:0;}to{width:1920px;}}
+.topmark{position:absolute;top:96px;left:120px;display:flex;align-items:center;gap:22px;}
+.blackbox{width:44px;height:44px;background:var(--ink);}
+.toplabel{font-family:Archivo,sans-serif;font-weight:800;font-size:26px;letter-spacing:.35em;}
+.chapter-no{position:absolute;top:170px;left:104px;font-family:Archivo,sans-serif;font-weight:900;font-size:380px;line-height:1;letter-spacing:-.04em;color:var(--ink);}
+.chapter-no .dot{color:var(--red);}
+.redrule{position:absolute;top:565px;left:120px;height:14px;background:var(--red);animation:rulew .8s var(--ease) 1s both;}
+@keyframes rulew{from{width:0;}to{width:180px;}}
+.kicker2{position:absolute;top:605px;left:120px;font-size:34px;font-weight:700;letter-spacing:.5em;color:var(--grey);}
+.maintitle{position:absolute;top:660px;left:112px;font-size:118px;font-weight:900;line-height:1.35;letter-spacing:.02em;font-family:'Noto Sans SC',sans-serif;}
+.maintitle .hl{color:var(--red);}
+.tsub{position:absolute;top:880px;left:120px;font-size:36px;font-weight:500;color:var(--grey);letter-spacing:.15em;}
+.vert{position:absolute;right:96px;top:200px;max-height:720px;overflow:hidden;writing-mode:vertical-rl;font-family:Archivo,sans-serif;font-weight:800;font-size:26px;letter-spacing:.35em;color:var(--ink);}
+.vert b{color:var(--red);}
+.tfooter{position:absolute;left:0;bottom:0;width:1920px;height:110px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 230px 0 120px;font-size:28px;letter-spacing:.2em;font-family:Archivo,'Noto Sans SC',sans-serif;}
+/* ==================== DIVIDER SLIDES ==================== */
+.divider .dnum{position:absolute;top:150px;left:104px;font-family:Archivo,sans-serif;font-weight:900;font-size:330px;line-height:1;letter-spacing:-.04em;}
+.divider .dnum .dot{color:var(--red);}
+.dlabel{position:absolute;top:470px;left:120px;font-size:64px;font-weight:900;font-family:'Noto Sans SC',sans-serif;}
+.ditems{position:absolute;top:600px;left:120px;right:200px;list-style:none;display:flex;flex-direction:column;gap:26px;}
+.ditems li{display:flex;align-items:center;gap:34px;font-size:40px;font-weight:500;color:#b5b5b5;}
+.ditems li .dno{font-family:Archivo,sans-serif;font-weight:800;font-size:30px;color:#cfcfcf;letter-spacing:.1em;}
+.ditems li.on{color:var(--ink);font-weight:700;}
+.ditems li.on .dno{color:var(--red);}
+.ditems li.on::after{content:"";width:60px;height:10px;background:var(--red);margin-left:10px;}
+.dfoot{position:absolute;left:120px;bottom:80px;display:flex;align-items:center;gap:18px;font-size:28px;letter-spacing:.3em;color:var(--grey);}
+/* ==================== EXERCISE SLIDES ==================== */
+.excard{position:absolute;top:430px;left:120px;right:140px;background:#fafafa;border:2px solid var(--ink);padding:56px 64px;display:flex;flex-direction:column;gap:28px;}
+.exno{font-family:Archivo,sans-serif;font-weight:900;font-size:88px;color:var(--red);line-height:1;}
+.extext{font-size:40px;font-weight:500;line-height:1.7;}
+.excard .formula code{display:block;font-size:36px;}
+/* ==================== PROGRESS + COUNTER (outside stage) ==================== */
+.deck-progress{position:fixed;left:0;bottom:0;height:8px;background:var(--red);width:0;z-index:1000;transition:width .4s var(--ease);}
+.deck-counter{position:fixed;right:34px;bottom:26px;z-index:1000;font-family:Archivo,sans-serif;font-weight:800;font-size:24px;letter-spacing:.2em;color:#fff;background:var(--ink);padding:12px 22px;}
+.deck-counter b{color:var(--red);}
+/* ==================== INLINE EDITING ==================== */
+.edit-hotzone{position:fixed;top:0;left:0;width:90px;height:90px;z-index:10000;cursor:pointer;}
+.edit-toggle{position:fixed;top:100px;left:18px;z-index:10001;opacity:0;pointer-events:none;transition:opacity .3s;background:var(--ink);color:#fff;border:none;font-size:26px;width:58px;height:58px;border-radius:50%;cursor:pointer;}
+.edit-toggle.show,.edit-toggle.active{opacity:1;pointer-events:auto;}
+.edit-toggle.active{background:var(--red);}
+body.editing [data-edit]{outline:3px dashed var(--red);outline-offset:8px;cursor:text;}
+.edit-hint{position:fixed;top:170px;left:18px;z-index:10001;display:none;background:var(--ink);color:#fff;font-size:22px;padding:14px 20px;max-width:340px;line-height:1.6;}
+body.editing .edit-hint{display:block;}
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+  <main class="deck-stage" id="deckStage">
+<section class="slide title-slide active" data-n="1">
+      <div class="gridlines"></div>
+      <div class="redbar"></div>
+      <div class="topmark reveal" style="--d:.5s"><div class="blackbox"></div><div class="toplabel">数据库系统</div></div>
+      <div class="chapter-no reveal" style="--d:.65s">09<span class="dot">.</span></div>
+      <div class="redrule reveal" style="--d:1s"></div>
+      <div class="kicker2 reveal" style="--d:1.15s">第九章 · CHAPTER 09</div>
+      <h1 class="maintitle reveal" style="--d:1.3s">关系系统及其<span class="hl">查询优化</span></h1>
+      <div class="tsub reveal" style="--d:1.5s">关系系统与关系模型 · 关系代数 · 查询优化技术</div>
+      <div class="vert reveal" style="--d:1.4s">RELATIONAL SYSTEMS</div>
+      <div class="tfooter reveal" style="--d:1.65s"><span><span class="sq"></span>授课 · chu</span><span>26/10/5</span></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">09<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统及其查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.1 关系系统</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2 关系系统的查询优化</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.3 小结</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">能够在一定程度上支持关系模型的数据库管理系统是关系系统。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">由于关系模型中并非每一部分都是同等重要的</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">并不苛求一个实际的关系系统必须完全支持关系模型。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统与关系模型</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">关系数据结构</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">域及域上定义的关系</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系操作</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">并、交、差、广义笛卡尔积、选择、投影、连接、除等</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系完整性</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统与关系模型（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">实体完整性、参照完整性、用户自己定义的完整性</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统的定义</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">一个数据库管理系统可定义为关系系统，当且仅当它至少支持：</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">1. 关系数据库（即关系数据结构）</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">系统中只有表这种结构</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">2. 支持选择、投影和（自然）连接运算</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">对这些运算不要求用户定义任何物理存取路径</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统的定义（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">对关系系统的最低要求</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统的定义</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">不支持关系数据结构的系统显然不能称为关系系统</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">仅支持关系数据结构，但没有选择、投影和连接运算功能的系统仍不能算作关系系统。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">原因：不能提高用户的生产率</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">支持选择、投影和连接运算，但要求定义物理存取路径，这种系统也不能算作真正的关系系统</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">原因：就降低或丧失了数据的物理独立性</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系系统的定义（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">选择、投影、连接运算是最有用的运算</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.1.2 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.1.2 关系系统的分类</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">分类依据：支持关系模型的程度</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">分类</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">⒈ 表式系统：支持关系数据结构(即表)</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">⒉ (最小)关系系统</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">支持：关系数据结构 选择、投影、连接关系操作</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.1.2 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.1.2 关系系统的分类（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">⒊ 关系完备的系统</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">支持：关系数据结构 所有的关系代数操作</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">⒋ 全关系系统</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">支持：关系模型的所有特征 数据结构中域的概念</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">09<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统及其查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.1 关系系统</span></li><li class="reveal on" style="--d:0.19s"><span class="dno">02</span><span>9.2 关系系统的查询优化</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.3 小结</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">9.2<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统的查询优化</div>
+      <ul class="ditems"><li class="reveal on" style="--d:0.10s"><span class="dno">01</span><span>9.2.1 查询优化概述</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2.2 查询优化的必要性</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.2.3 查询优化的一般准则</span></li><li class="reveal" style="--d:0.37s"><span class="dno">04</span><span>9.2.4 关系代数等价变换规则</span></li><li class="reveal" style="--d:0.46s"><span class="dno">05</span><span>9.2.5 关系代数表达式的优化算法</span></li><li class="reveal" style="--d:0.55s"><span class="dno">06</span><span>9.2.6 优化的一般步骤</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.1 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.1 查询优化概述</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">查询优化的必要性</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">查询优化极大地影响RDBMS的性能。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">查询优化的可能性</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系数据语言的级别很高，使DBMS可以从关系表达式中分析查询语义。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">由DBMS进行查询优化的好处</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">用户不必考虑如何最好地表达查询以获得较好的效率</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">系统可以比用户程序的优化做得更好</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">(1) 优化器可以从数据字典中获取许多统计信息，而用户程序则难以获得这些信息</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">由DBMS进行查询优化的好处</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">(2)如果数据库的物理统计信息改变了，系统可以自动对查询重新优化以选择相适应的执行计划。在非关系系统中必须重写程序，而重写程序在实际应用中往往是不太可能的。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">(3)优化器可以考虑数百种不同的执行计划，而程序员一般只能考虑有限的几种可能性。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">(4)优化器中包括了很多复杂的优化技术</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化目标</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">查询优化的总目标</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">选择有效策略，求得给定关系表达式的值</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">实际系统的查询优化步骤</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">1. 将查询转换成某种内部表示，通常是语法树</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化目标（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">2. 根据一定的等价变换规则把语法树转换成标准</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">（优化）形式</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">实际系统的查询优化步骤</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">3. 选择低层的操作算法</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">对于语法树中的每一个操作</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">计算各种执行算法的执行代价</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">选择代价小的执行算法</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">4. 生成查询计划(查询执行方案)</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">实际系统的查询优化步骤（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">查询计划是由一系列内部操作组成的。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">代价模型</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">集中式数据库</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">单用户系统</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">总代价 = I/O代价 + CPU代价</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">多用户系统</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">总代价 = I/O代价 + CPU代价 + 内存代价</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">代价模型（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">分布式数据库</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">总代价 = I/O代价 + CPU代价[+ 内存代价] + 通信代价</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">9.2<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统的查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.2.1 查询优化概述</span></li><li class="reveal on" style="--d:0.19s"><span class="dno">02</span><span>9.2.2 查询优化的必要性</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.2.3 查询优化的一般准则</span></li><li class="reveal" style="--d:0.37s"><span class="dno">04</span><span>9.2.4 关系代数等价变换规则</span></li><li class="reveal" style="--d:0.46s"><span class="dno">05</span><span>9.2.5 关系代数表达式的优化算法</span></li><li class="reveal" style="--d:0.55s"><span class="dno">06</span><span>9.2.6 优化的一般步骤</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.2 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.2 查询优化的必要性</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">[例] 求选修了课程C2的学生姓名</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">SELECT Student.Sname</li><li class="lv1 reveal" style="--d:.2s">FROM Student, SC</li><li class="lv1 reveal" style="--d:.2s">WHERE Student.Sno=SC.Sno</li><li class="lv1 reveal" style="--d:.2s">AND SC.Cno=&#x27;2&#x27;;</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">假设1：外存：</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">Student:1000条,SC:10000条, 选修2号课程:50条</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">假设2：一个内存块装元组:10个Student, 或100个SC,</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">内存中一次可以存放: 5块Student元组,1块SC元组和若干块连接结果元组</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">假设3：读写速度：20块/秒</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">假设4：连接方法：基于数据块的嵌套循环法</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">执行策略1</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="formula reveal" style="--d:.15s"><code>Q1= ΠSname(σStudent.Sno=SC.Sno∧SC.Cno=&#x27;2&#x27; (Student×SC))</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">执行策略1（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="step reveal" style="--d:.15s"><span class="stepno">①</span><div><div class="stephead">Student×SC</div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>=1000/10+(1000/(10×5)) ×(10000/100)</code></li><li class="formula reveal" style="--d:.2s"><code>=100+20×100=2100</code></li><li class="sub reveal" style="--d:.2s">读取总块数= 读Student表块数 + 读SC表遍数</li><li class="sub reveal" style="--d:.2s">*每遍块数</li></ul></div></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">执行策略1（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="formula reveal" style="--d:.15s"><code>读数据时间=2100/20=105秒</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">不同的执行策略,考虑I/O时间</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">中间结果大小 = 1000*10000 = 10⁷（1千万条元组）</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>写中间结果时间 = 10000000/10/20 = 50000秒</code></li></ul></li>
+<li class="step reveal" style="--d:.15s"><span class="stepno">②</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读数据时间 = 50000秒</code></li></ul></div></li>
+<li class="step reveal" style="--d:.15s"><span class="stepno">③</span><div></div></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">不同的执行策略,考虑I/O时间（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">总时间 =105＋50000＋50000秒 = 100105秒</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>= 27.8小时</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="formula reveal" style="--d:.15s"><code>2. Q2= ΠSname(σSC.Cno=&#x27; 2&#x27; (Student SC))</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="step reveal" style="--d:.15s"><span class="stepno">①</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读取总块数= 2100块</code></li><li class="formula reveal" style="--d:.2s"><code>读数据时间=2100/20=105秒</code></li><li class="formula reveal" style="--d:.2s"><code>中间结果大小=10000 （减少1000倍）</code></li><li class="formula reveal" style="--d:.2s"><code>写中间结果时间=10000/10/20=50秒</code></li></ul></div></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="step reveal" style="--d:.15s"><span class="stepno">②</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读数据时间=50秒</code></li></ul></div></li>
+<li class="step reveal" style="--d:.15s"><span class="stepno">③</span><div></div></li>
+<li class="formula reveal" style="--d:.15s"><code>总时间=105＋50＋50秒=205秒=3.4分</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="formula reveal" style="--d:.15s"><code>3. Q2= ΠSname(Student σSC.Cno=&#x27; 2&#x27; (SC))</code></li>
+<li class="step reveal" style="--d:.15s"><span class="stepno">①</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读SC表总块数= 10000/100=100块</code></li><li class="formula reveal" style="--d:.2s"><code>读数据时间=100/20=5秒</code></li><li class="formula reveal" style="--d:.2s"><code>中间结果大小=50条 不必写入外存</code></li></ul></div></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="step reveal" style="--d:.15s"><span class="stepno">②</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读Student表总块数= 1000/10=100块</code></li><li class="formula reveal" style="--d:.2s"><code>读数据时间=100/20=5秒</code></li></ul></div></li>
+<li class="step reveal" style="--d:.15s"><span class="stepno">③</span><div></div></li>
+<li class="formula reveal" style="--d:.15s"><code>总时间=5＋5秒=10秒</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="formula reveal" style="--d:.15s"><code>4. Q2= ΠSname(Student σSC.Cno=&#x27;2&#x27; (SC))</code></li>
+<li class="reveal" style="--d:.1s"><span class="btext">假设SC表在Cno上有索引，Student表在Sno上有索引</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="step reveal" style="--d:.15s"><span class="stepno">①</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读SC表总块数= 50/100&lt;1块</code></li><li class="formula reveal" style="--d:.2s"><code>中间结果大小=50条 不必写入外存</code></li><li class="sub reveal" style="--d:.2s">读SC表索引=</li><li class="sub reveal" style="--d:.2s">读数据时间</li></ul></div></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="step reveal" style="--d:.15s"><span class="stepno">②</span><div><ul class="stepsub"><li class="formula reveal" style="--d:.2s"><code>读Student表总块数= 50/10=5块</code></li><li class="sub reveal" style="--d:.2s">读Student表索引=</li><li class="sub reveal" style="--d:.2s">读数据时间</li></ul></div></li>
+<li class="step reveal" style="--d:.15s"><span class="stepno">③</span><div></div></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的必要性（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">总时间&lt;10秒</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">9.2<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统的查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.2.1 查询优化概述</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2.2 查询优化的必要性</span></li><li class="reveal on" style="--d:0.28s"><span class="dno">03</span><span>9.2.3 查询优化的一般准则</span></li><li class="reveal" style="--d:0.37s"><span class="dno">04</span><span>9.2.4 关系代数等价变换规则</span></li><li class="reveal" style="--d:0.46s"><span class="dno">05</span><span>9.2.5 关系代数表达式的优化算法</span></li><li class="reveal" style="--d:0.55s"><span class="dno">06</span><span>9.2.6 优化的一般步骤</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.3 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.3 查询优化的一般准则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">选择运算应尽可能先做</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">目的：减小中间关系</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">在执行连接操作前对关系适当进行预处理</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">按连接属性排序</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">在连接属性上建立索引</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.3 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.3 查询优化的一般准则（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">投影运算和选择运算同时做</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">目的：避免重复扫描关系</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">将投影运算与其前面或后面的双目运算结合</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">目的：减少扫描关系的遍数</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">查询优化的一般准则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">某些选择运算＋在其前面执行的笛卡尔积</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">===&gt; 连接运算</li><li class="formula reveal" style="--d:.2s"><code>例：σStudent.Sno=SC.Sno (Student×SC)</code></li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">Student SC</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">提取公共子表达式</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">9.2<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统的查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.2.1 查询优化概述</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2.2 查询优化的必要性</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.2.3 查询优化的一般准则</span></li><li class="reveal on" style="--d:0.37s"><span class="dno">04</span><span>9.2.4 关系代数等价变换规则</span></li><li class="reveal" style="--d:0.46s"><span class="dno">05</span><span>9.2.5 关系代数表达式的优化算法</span></li><li class="reveal" style="--d:0.55s"><span class="dno">06</span><span>9.2.6 优化的一般步骤</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.4 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.4 关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">关系代数表达式等价</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">指用相同的关系代替两个表达式中相应的关系所得到的结果是相同的</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">上面的优化策略大部分都涉及到代数表达式的变换</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">常用的等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">设E1、E2等是关系代数表达式，F是条件表达式</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">l. 连接、笛卡尔积交换律</li><li class="lv1 reveal" style="--d:.2s">E1 E2≡E2 E1</li><li class="lv1 reveal" style="--d:.2s">E1 F E2≡E2 F E1</li><li class="formula reveal" style="--d:.2s"><code>E1 × E2≡E2 × E1</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">2. 连接、笛卡尔积的结合律</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">(E1 E2) E3 ≡ E1 (E2 E3)</li><li class="lv1 reveal" style="--d:.2s">(E1 E2) E3 ≡ E1 (E2 E3)</li><li class="lv1 reveal" style="--d:.2s">F F F F</li><li class="formula reveal" style="--d:.2s"><code>(E1×E2) × E3 ≡ E1 × (E2×E3)</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">3. 投影的串接定律</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>π A1,A2, …,An(π B1,B2, …,Bm(E))≡ π A1,A2,…,An (E)</code></li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">假设：</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">1) E是关系代数表达式</span></li>
+<li class="formula reveal" style="--d:.15s"><code>2) Ai(i=1，2，…，n), Bj(j=l，2，…，m)是属性名</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">3){A1, A2, …, An}构成{Bl，B2，…，Bm}的子集</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">4. 选择的串接定律</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>σF1 （ F2（E））≡ σF1∧ F2(E)</code></li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">选择的串接律说明 选择条件可以合并</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">这样一次就可检查全部条件。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">5. 选择与投影的交换律</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">(1)假设: 选择条件F只涉及属性A1，…，An</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>σF (πA1,A2,..,An(E))≡ πA1,A2, ...,An(σF(E))</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">(2)假设: F中有不属于A1, …,An的属性B1,…,Bm</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>π A1,A2,…,An ( σF (E))≡</code></li><li class="formula reveal" style="--d:.2s"><code>πA1,A2,…,An(σF (πA1,A2, …,An,B1,B2, …,Bm(E)))</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">6. 选择与笛卡尔积的交换律</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">(1) 假设：F中涉及的属性都是E1中的属性</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>σF (E1×E2)≡σF (E1)×E2</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">(2) 假设：F=F1∧F2，并且F1只涉及E1中的属性，</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">F2只涉及E2中的属性</li><li class="lv1 reveal" style="--d:.2s">则由上面的等价变换规则1，4，6可推出：</li><li class="formula reveal" style="--d:.2s"><code>σF(E1×E2) ≡ F1(E1)×σF2 (E2)</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">(3) 假设： F=F1∧F2，</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">F1只涉及E1中的属性，</li><li class="lv1 reveal" style="--d:.2s">F2涉及E1和E2两者的属性</li><li class="lv1 reveal" style="--d:.2s">它使部分选择在笛卡尔积前先做</li><li class="formula reveal" style="--d:.2s"><code>σF(E1×E2)≡ F2(σF1(E1)×E2)</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">7. 选择与并的交换</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">假设：E=E1∪E2，E1，E2有相同的属性名</li><li class="formula reveal" style="--d:.2s"><code>σF(E1∪E2)≡ σF(E1)∪ σF(E2)</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">8. 选择与差运算的交换</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">假设：E1与E2有相同的属性名</li><li class="formula reveal" style="--d:.2s"><code>σF(E1-E2)≡ σF(E1) - σF(E2)</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">9. 投影与笛卡尔积的交换</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">假设：E1和E2是两个关系表达式，</li><li class="lv1 reveal" style="--d:.2s">A1，…，An是E1的属性，</li><li class="lv1 reveal" style="--d:.2s">B1，…，Bm是E2的属性</li><li class="formula reveal" style="--d:.2s"><code>π A1,A2, …,An,B1,B2, …,Bm （E1×E2)≡</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="formula reveal" style="--d:.15s"><code>π A1,A2, …,An（E1)× π B1,B2, …,Bm(E2)</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数等价变换规则</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">l0. 投影与并的交换</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">假设：E1和E2 有相同的属性名</li><li class="formula reveal" style="--d:.2s"><code>π A1,A2, …,An(E1∪E2)≡</code></li><li class="formula reveal" style="--d:.2s"><code>π A1,A2, …,An(E1)∪ π A1,A2, …,An(E2)</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">小结</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">1-2: 连接、笛卡尔积的交换律、结合律</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">3： 合并或分解投影运算</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">4： 合并或分解选择运算</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">5-8： 选择运算与其他运算交换</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">5，9，10： 投影运算与其他运算交换</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">9.2<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统的查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.2.1 查询优化概述</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2.2 查询优化的必要性</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.2.3 查询优化的一般准则</span></li><li class="reveal" style="--d:0.37s"><span class="dno">04</span><span>9.2.4 关系代数等价变换规则</span></li><li class="reveal on" style="--d:0.46s"><span class="dno">05</span><span>9.2.5 关系代数表达式的优化算法</span></li><li class="reveal" style="--d:0.55s"><span class="dno">06</span><span>9.2.6 优化的一般步骤</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.5 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.5 关系代数表达式的优化算法</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">算法：关系表达式的优化</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">输入：一个关系表达式的语法树。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">输出：计算该表达式的程序。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">方法：</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.5 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.5 关系代数表达式的优化算法（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">（1）分解选择运算</span><ul class="sublist"><li class="formula reveal" style="--d:.2s"><code>利用规则4把形如σF1 ∧F2 ∧ … ∧ Fn (E)变换为</code></li><li class="formula reveal" style="--d:.2s"><code>σF1 (σF2(… (σFn(E))… ))</code></li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数表达式的优化算法</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">（2）通过交换选择运算，将其尽可能移到叶端</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">对每一个选择，利用规则4～8尽可能把它移到树的叶端。</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">（3）通过交换投影运算，将其尽可能移到叶端</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">对每一个投影利用规则3，9，l0，5中的一般形式尽可能把它移向树的叶端。</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数表达式的优化算法</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">（4）合并串接的选择和投影，以便能同时执行或在一次扫描中完成</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">利用规则3～5把选择和投影的串接合并成单个选择、单个投影或一个选择后跟一个投影。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">使多个选择或投影能同时执行，或在一次扫描中全部完成</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">尽管这种变换似乎违背“投影尽可能早做”的原则，但这样做效率更高。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数表达式的优化算法</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">（5）对内结点分组</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">把上述得到的语法树的内节点分组。</span></li>
+<li class="formula reveal" style="--d:.15s"><code>每一双目运算(×， ，∪，-)和它所有的直接祖先为一组(这些直接祖先是，π运算)。</code></li>
+<li class="formula reveal" style="--d:.15s"><code>如果其后代直到叶子全是单目运算，则也将它们并入该组，但当双目运算是笛卡尔积(×)，而且其后的选择不能与它结合为等值连接时除外。把这些单目运算单独分为一组。</code></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">关系代数表达式的优化算法</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">（6）生成程序</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">生成一个程序，每组结点的计算是程序中的一步。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">各步的顺序是任意的，只要保证任何一组的计算不会在它的后代组之前计算。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">9.2<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统的查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.2.1 查询优化概述</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2.2 查询优化的必要性</span></li><li class="reveal" style="--d:0.28s"><span class="dno">03</span><span>9.2.3 查询优化的一般准则</span></li><li class="reveal" style="--d:0.37s"><span class="dno">04</span><span>9.2.4 关系代数等价变换规则</span></li><li class="reveal" style="--d:0.46s"><span class="dno">05</span><span>9.2.5 关系代数表达式的优化算法</span></li><li class="reveal on" style="--d:0.55s"><span class="dno">06</span><span>9.2.6 优化的一般步骤</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.2.6 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.2.6 优化的一般步骤</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">1．把查询转换成某种内部表示</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">2．代数优化：把语法树转换成标准（优化）形式</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">3．物理优化：选择低层的存取路径</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">4．生成查询计划，选择代价最小的</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">优化的一般步骤</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">（1）把查询转换成某种内部表示</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">优化的一般步骤（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">例：求选修了课程C2的学生姓名</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">SELECT Student.Sname</li><li class="lv1 reveal" style="--d:.2s">FROM Student, SC</li><li class="lv1 reveal" style="--d:.2s">WHERE Student.Sno=SC.Sno</li><li class="lv1 reveal" style="--d:.2s">AND SC.Cno=&#x27;2&#x27;;</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（1）把查询转换成某种内部表示</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">语法树</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">结果</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">project(Sname)</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">select(SC.Cno=2)</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">join(Student.Sno=SC.Sno)</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（1）把查询转换成某种内部表示（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">Student</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">SC</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（2）代数优化</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">利用优化算法把语法树转换成标准（优化）形式</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（3）物理优化：选择低层的存取路径</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">- 优化器查找数据字典获得当前数据库状态信息</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">选择字段上是否有索引</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">连接的两个表是否有序</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">连接字段上是否有索引</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">然后根据一定的优化规则选择存取路径</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（3）物理优化：选择低层的存取路径（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">如本例中若SC表上建有Cno的索引，则应该利用这个索引，而不必顺序扫描SC表。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（4）生成查询计划，选择代价最小的</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">--在作连接运算时，若两个表(设为R1，R2)均无序，连接属性上也没有索引，则可以有下面几种查询计划：</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">对两个表作排序预处理</li><li class="lv1 reveal" style="--d:.2s">对R1在连接属性上建索引</li><li class="lv1 reveal" style="--d:.2s">对R2在连接属性上建索引</li><li class="lv1 reveal" style="--d:.2s">在R1，R2的连接属性上均建索引</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">（4）生成查询计划，选择代价最小的（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">--对不同的查询计划计算代价，选择代价最小的一个。</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">--在计算代价时主要考虑磁盘读写的I/O数，内存CPU处理时间在粗略计算时可不考虑。</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide divider" data-n="">
+      <div class="gridlines"></div>
+      <div class="dnum reveal" style="--d:0s">09<span class="dot">.</span></div>
+      <div class="dlabel reveal" style="--d:.12s">关系系统及其查询优化</div>
+      <ul class="ditems"><li class="reveal" style="--d:0.10s"><span class="dno">01</span><span>9.1 关系系统</span></li><li class="reveal" style="--d:0.19s"><span class="dno">02</span><span>9.2 关系系统的查询优化</span></li><li class="reveal on" style="--d:0.28s"><span class="dno">03</span><span>9.3 小结</span></li></ul>
+      <div class="dfoot reveal" style="--d:.7s"><span class="sq"></span>本章内容导航</div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.3 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.3 小结</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">关系系统</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系系统的定义</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">一个数据库管理系统可定义为关系系统，当且仅当它至少支持：</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">1． 关系数据库（即关系数据结构）</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">9.3 · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">9.3 小结（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">2． 支持选择、投影和（自然）连接运算，</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">且不要求用户定义任何物理存取路径</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">小结</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">关系系统的分类</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">表式系统</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">(最小)关系系统</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系完备系统</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">全关系系统</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">小结</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">关系系统的查询优化</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">代数优化：关系代数表达式的优化</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系代数等价变换规则</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">关系代数表达式的优化算法</span></li>
+<li class="reveal" style="--d:.1s"><span class="btext">物理优化：存取路径和低层操作算法的选择</span></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">本章总结</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">主要内容：</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">关系系统，查询优化</li></ul></li>
+<li class="reveal" style="--d:.1s"><span class="btext">重要知识点：</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">关系代数等价变换规则，关系代数表达式的查询优化问题，优化策略</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">LECTURE · 课堂讲授</div>
+        <h2 class="stitle reveal" style="--d:.08s">本章总结（续）</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="sbody"><ul class="bullets">
+<li class="reveal" style="--d:.1s"><span class="btext">本章题型：</span><ul class="sublist"><li class="lv1 reveal" style="--d:.2s">选择，填空，应用题</li></ul></li>
+</ul></div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">EXERCISES · 本章习题</div>
+        <h2 class="stitle reveal" style="--d:.08s">课堂练习</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="excard reveal" style="--d:.2s">
+        <div class="exno">说明</div>
+        <div class="extext">以下各题均对学生-课程数据库进行查询，并且用关系代数表达式表示该查询并画出初始语法数，并将其进行优化。</div>
+        
+      </div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">EXERCISES · 本章习题</div>
+        <h2 class="stitle reveal" style="--d:.08s">课堂练习</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="excard reveal" style="--d:.2s">
+        <div class="exno">1</div>
+        <div class="extext">查询选修课成绩为90的学生的姓名。</div>
+        <div class="formula reveal" style="--d:.25s"><code>Πsname(σgrade=90(s sc))</code></div><div class="formula reveal" style="--d:.25s"><code>Πsname(σgrade=90(σs.sno=sc.sno(s×sc)))</code></div>
+      </div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">EXERCISES · 本章习题</div>
+        <h2 class="stitle reveal" style="--d:.08s">课堂练习</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="excard reveal" style="--d:.2s">
+        <div class="exno">2</div>
+        <div class="extext">查询选修课程名为DB的学生姓名。</div>
+        <div class="formula reveal" style="--d:.25s"><code>Πsname(σc.cname=‘DB’(σs.sno=sc.sno∧sc.cno=c.cno(s×sc×c)))</code></div>
+      </div>
+    </section>
+
+    <section class="slide" data-n="">
+      <div class="gridlines"></div>
+      <div class="chrome"><span class="sq"></span><span>数据库系统 · 第九章</span></div>
+      <div class="shead">
+        <div class="kicker reveal" style="--d:0s">EXERCISES · 本章习题</div>
+        <h2 class="stitle reveal" style="--d:.08s">课堂练习</h2>
+        <div class="rule-red reveal" style="--d:.16s"></div>
+      </div>
+      <div class="excard reveal" style="--d:.2s">
+        <div class="exno">3</div>
+        <div class="extext">查询选修课程名为DB的成绩在85分以上的女学生姓名。</div>
+        <div class="formula reveal" style="--d:.25s"><code>Πsname(σcname=‘DB’∧ssex=‘F’∧grade&gt;85(σs.sno=sc.sno∧sc.cno=c.cno(s×sc×c)))</code></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="deck-progress" id="deckProgress"></div>
+<div class="deck-counter" id="deckCounter"><b>1</b> / 91</div>
+<div class="edit-hotzone" id="editHotzone" title="编辑"></div>
+<button class="edit-toggle" id="editToggle" title="编辑模式 (E)">&#9998;</button>
+<div class="edit-hint">编辑模式：直接点击文字修改。<br>Ctrl+S 保存为新文件 · E 退出编辑</div>
+<script>
+/* ==================== SLIDE PRESENTATION CONTROLLER ==================== */
+class SlidePresentation{
+  constructor(){
+    this.slides=[...document.querySelectorAll('.slide')];
+    this.stage=document.getElementById('deckStage');
+    this.prog=document.getElementById('deckProgress');
+    this.counter=document.getElementById('deckCounter');
+    this.cur=0; this.lock=false;
+    this.fit(); addEventListener('resize',()=>this.fit());
+    // deep link: #12 (also respond to hash changes, e.g. back/forward)
+    const applyHash=()=>{
+      const h=parseInt(location.hash.slice(1),10);
+      if(h>=1&&h<=this.slides.length)this.show(h-1);
+    };
+    applyHash();
+    addEventListener('hashchange',applyHash);
+    this.show(this.cur,true);
+    addEventListener('keydown',e=>this.key(e));
+    // wheel (debounced)
+    addEventListener('wheel',e=>{
+      if(this.lock||document.body.classList.contains('editing'))return;
+      if(Math.abs(e.deltaY)<24)return;
+      this.lock=true; setTimeout(()=>this.lock=false,700);
+      this.go(e.deltaY>0?1:-1);
+    },{passive:true});
+    // touch swipe
+    let sx=0;
+    addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+    addEventListener('touchend',e=>{
+      const dx=e.changedTouches[0].clientX-sx;
+      if(Math.abs(dx)>70) this.go(dx<0?1:-1);
+    },{passive:true});
+  }
+  fit(){
+    const k=Math.min(innerWidth/1920,innerHeight/1080);
+    this.stage.style.transform=`translate(${(innerWidth-1920*k)/2}px,${(innerHeight-1080*k)/2}px) scale(${k})`;
+  }
+  key(e){
+    if(document.body.classList.contains('editing'))return;
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown')this.go(1);
+    else if(e.key==='ArrowLeft'||e.key==='PageUp')this.go(-1);
+    else if(e.key==='Home')this.show(0);
+    else if(e.key==='End')this.show(this.slides.length-1);
+  }
+  go(d){this.show(this.cur+d);}
+  show(i,instant){
+    this.cur=Math.max(0,Math.min(i,this.slides.length-1));
+    this.slides.forEach((s,k)=>{
+      s.classList.toggle('active',k===this.cur);
+      s.classList.toggle('visible',k===this.cur);
+    });
+    this.prog.style.width=(100*(this.cur+1)/this.slides.length)+'%';
+    this.counter.innerHTML=`<b>${this.cur+1}</b> / ${this.slides.length}`;
+    history.replaceState(null,'','#'+(this.cur+1));
+  }
+}
+/* ==================== INLINE EDITOR ==================== */
+const editor={
+  isActive:false,
+  toggleEditMode(){
+    this.isActive=!this.isActive;
+    document.body.classList.toggle('editing',this.isActive);
+    document.getElementById('editToggle').classList.toggle('active',this.isActive);
+    document.querySelectorAll('.stitle,.maintitle,.btext,.extext,.dlabel,.tsub,.kicker2').forEach(el=>{
+      el.setAttribute('data-edit','');
+      el.contentEditable=this.isActive?'true':'false';
+      el.spellcheck=false;
+    });
+    if(this.isActive)this.restore();else this.save();
+  },
+  key:'ch9-deck-edits-v1',
+  save(){
+    const data={};
+    document.querySelectorAll('[data-edit]').forEach((el,i)=>data[i]=el.innerHTML);
+    try{localStorage.setItem(this.key,JSON.stringify(data));}catch(e){}
+  },
+  restore(){
+    try{
+      const data=JSON.parse(localStorage.getItem(this.key)||'{}');
+      document.querySelectorAll('[data-edit]').forEach((el,i)=>{if(data[i]!==undefined)el.innerHTML=data[i];});
+    }catch(e){}
+  },
+  download(){
+    this.save();
+    const blob=new Blob(['<!DOCTYPE html>\n'+document.documentElement.outerHTML],{type:'text/html'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='ch9-query-optimization-edited.html';a.click();
+  }
+};
+const deck=new SlidePresentation(); editor.restore();
+document.getElementById('editToggle').addEventListener('click',()=>editor.toggleEditMode());
+const hz=document.getElementById('editHotzone'),et=document.getElementById('editToggle');
+let ht=null;
+const showT=()=>{clearTimeout(ht);et.classList.add('show');};
+const hideT=()=>{ht=setTimeout(()=>{if(!editor.isActive)et.classList.remove('show');},400);};
+hz.addEventListener('mouseenter',showT);hz.addEventListener('mouseleave',hideT);
+et.addEventListener('mouseenter',showT);et.addEventListener('mouseleave',hideT);
+hz.addEventListener('click',()=>editor.toggleEditMode());
+addEventListener('keydown',e=>{
+  if((e.key==='e'||e.key==='E')&&!e.target.isContentEditable&&!document.body.classList.contains('editing'))editor.toggleEditMode();
+  else if((e.key==='e'||e.key==='E')&&document.body.classList.contains('editing')&&!e.target.isContentEditable)editor.toggleEditMode();
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'&&document.body.classList.contains('editing')){e.preventDefault();editor.download();}
+});
+</script>
+</body>
+</html>
